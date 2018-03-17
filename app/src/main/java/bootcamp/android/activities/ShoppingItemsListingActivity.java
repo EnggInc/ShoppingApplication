@@ -1,33 +1,72 @@
 package bootcamp.android.activities;
 
 import android.app.Activity;
+import android.app.ProgressDialog;
 import android.os.Bundle;
-import android.os.StrictMode;
+import android.support.annotation.NonNull;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.widget.Toast;
 
-import java.util.List;
+import java.util.ArrayList;
 
 import bootcamp.android.R;
 import bootcamp.android.adapters.ShoppingItemsListAdapter;
 import bootcamp.android.models.Product;
 import bootcamp.android.repositories.ProductRepository;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
+import static bootcamp.android.constants.Constants.*;
 
 public class ShoppingItemsListingActivity extends Activity {
+
+  private ArrayList<Product> products;
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     setContentView(R.layout.main);
+    if(savedInstanceState == null || savedInstanceState.getParcelableArrayList(PRODUCTS_KEY) == null){
+      final ProgressDialog progressDialog = ProgressDialog.show(this, "", "Loading...", true, true);
+      Callback<ArrayList<Product>> callback = productsCallback(progressDialog);
+      ProductRepository productRepository = new ProductRepository();
+      productRepository.getProducts(callback);
+    } else
+    {
+      products = savedInstanceState.getParcelableArrayList(PRODUCTS_KEY);
+      renderProducts();
+    }
+  }
 
-    StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
-    StrictMode.setThreadPolicy(policy);
+  @NonNull
+  private Callback<ArrayList<Product>> productsCallback(final ProgressDialog progressDialog) {
+    return new Callback<ArrayList<Product>>() {
+      @Override
+      public void onResponse(Call<ArrayList<Product>> call, Response<ArrayList<Product>> response) {
+        products = response.body();
+        renderProducts();
+        progressDialog.dismiss();
+      }
 
-    ProductRepository productRepository = new ProductRepository();
-    List<Product> products = productRepository.getProducts();
+      @Override
+      public void onFailure(Call<ArrayList<Product>> call, Throwable t) {
+        Toast.makeText(ShoppingItemsListingActivity.this, "Failed to get products", Toast.LENGTH_SHORT).show();
+        progressDialog.dismiss();
+      }
+    };
+  }
+
+  private void renderProducts() {
     RecyclerView recyclerView = (RecyclerView) findViewById(R.id.recycler_view);
-    recyclerView.setLayoutManager(new GridLayoutManager(this, 3));
-    ShoppingItemsListAdapter productArrayAdapter = new ShoppingItemsListAdapter(products);
-    recyclerView.setAdapter(productArrayAdapter);
+    recyclerView.setAdapter(new ShoppingItemsListAdapter(products));
+    recyclerView.setLayoutManager(new GridLayoutManager(ShoppingItemsListingActivity.this, 3));
+  }
+
+  @Override
+  protected void onSaveInstanceState(Bundle outState) {
+    super.onSaveInstanceState(outState);
+    if(products != null) outState.putParcelableArrayList(PRODUCTS_KEY, products);
   }
 }
